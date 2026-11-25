@@ -1,0 +1,382 @@
+algoritmo "Super Jogo da Velha v7"
+
+// Marcas: "X" e "O". "-" = vazio.
+// Velha em um subtabuleiro: a casa grande continua sem dono e pode ser escolhida de novo
+// Quando escolhida novamente, o subtabuleiro e reiniciado do zero.
+
+var
+  peq: vetor[1..9,1..9] de caractere   // peq[casa grande, posicão]: os 9 subtabuleiros
+  grande: vetor[1..9] de caractere     // tabuleiro grande: "-", "X" ou "O"
+  linhas: vetor[1..8,1..3] de inteiro  // as 8 linhas de vitória de um 3x3
+  empatada: vetor[1..9] de logico      // casa grande que deu velha e está livre de novo
+  i, j, cb, atual, jogadasTotal, limite, livres, vx, vo: inteiro
+  ultimaPos, ultimaCasa, lido, n: inteiro
+  br, bc, sr, c, b, idx, kp, q, a1, a2, a3: inteiro
+  chooser, jog, tt, opc, evento, motivo, ultimaJog: caractere
+  terminou, seguir, valida, porContagem, semAlinhar, jogarDeNovo: logico
+  acabou, ganhou, pode, temX, temO: logico
+
+  // Monta a tabela das linhas: 1-3 horizontais, 4-6 verticais, 7 e 8 diagonais
+procedimento iniLinhas
+  inicio
+    para q de 1 ate 3 faca
+      para kp de 1 ate 3 faca
+        linhas[kp,q] <- (kp-1)*3 + q
+        idx <- kp + 3
+        linhas[idx,q] <- kp + (q-1)*3
+      fimpara
+      linhas[7,q] <- 1 + (q-1)*4
+      linhas[8,q] <- 3 + (q-1)*2
+    fimpara
+fimprocedimento
+
+// "jog" fez três em linha no subtabuleiro "cb"? Resultado em "ganhou"
+procedimento venceSub
+  inicio
+    ganhou <- falso
+    tt <- jog + jog + jog
+    para kp de 1 ate 8 faca
+      a1 <- linhas[kp,1]
+      a2 <- linhas[kp,2]
+      a3 <- linhas[kp,3]
+      se peq[cb,a1] + peq[cb,a2] + peq[cb,a3] = tt entao
+        ganhou <- verdadeiro
+      fimse
+    fimpara
+fimprocedimento
+
+// "jog" fez três em linha no tabuleiro grande? Resultado em "ganhou"
+procedimento venceGrande
+  inicio
+    ganhou <- falso
+    tt <- jog + jog + jog
+    para kp de 1 ate 8 faca
+      a1 <- linhas[kp,1]
+      a2 <- linhas[kp,2]
+      a3 <- linhas[kp,3]
+      se grande[a1] + grande[a2] + grande[a3] = tt entao
+        ganhou <- verdadeiro
+      fimse
+    fimpara
+fimprocedimento
+
+// Alguém ainda consegue alinhar no tabuleiro grande? Resultado em "pode"
+// Uma linha só está perdida para os dois quando já tem X e O ao mesmo tempo.
+procedimento calcPossivel
+  inicio
+    pode <- falso
+    para kp de 1 ate 8 faca
+      temX <- falso
+      temO <- falso
+      para q de 1 ate 3 faca
+        a1 <- linhas[kp,q]
+        se grande[a1] = "X" entao
+          temX <- verdadeiro
+        fimse
+        se grande[a1] = "O" entao
+          temO <- verdadeiro
+        fimse
+      fimpara
+      se (nao temX) ou (nao temO) entao
+        pode <- verdadeiro
+      fimse
+    fimpara
+fimprocedimento
+
+// Conta casas grandes ganhas por X (vx), por O (vo) e casas ainda livres (livres)
+procedimento contaTudo
+  inicio
+    vx <- 0
+    vo <- 0
+    livres <- 0
+    para kp de 1 ate 9 faca
+      se grande[kp] = "X" entao
+        vx <- vx + 1
+      fimse
+      se grande[kp] = "O" entao
+        vo <- vo + 1
+      fimse
+      se grande[kp] = "-" entao
+        livres <- livres + 1
+      fimse
+    fimpara
+fimprocedimento
+
+// Preparação de uma nova partida
+procedimento inicializa
+  inicio
+    para i de 1 ate 9 faca
+      grande[i] <- "-"
+      empatada[i] <- falso
+      para j de 1 ate 9 faca
+        peq[i,j] <- "-"
+      fimpara
+    fimpara
+    jogadasTotal <- 0
+    atual <- 0
+    ultimaPos <- 0
+    ultimaCasa <- 0
+    ultimaJog <- ""
+    evento <- ""
+    motivo <- ""
+    chooser <- "X"
+    terminou <- falso
+    porContagem <- falso
+    semAlinhar <- falso
+fimprocedimento
+
+// Tela
+procedimento exibe
+  inicio
+    contaTudo
+    limpatela
+    escreval("=========== SUPER JOGO DA VELHA ===========")
+    escreval("Casas grandes ganhas -> X: ", vx, "   O: ", vo)
+    escreval("Jogadas: ", jogadasTotal, " de ", limite, "   |   Casas grandes livres: ", livres)
+    se semAlinhar entao
+      escreval("OBS: ninguem mais pode alinhar; vence quem tiver mais casas grandes.")
+    fimse
+    escreval("")
+    escreval("TABULEIRO GRANDE:")
+    escreval("(numero = livre | n~ = livre apos velha | X ou O = ganhou | [n] = em jogo)")
+    para br de 0 ate 2 faca
+      para bc de 0 ate 2 faca
+        b <- br*3 + bc + 1
+        se grande[b] <> "-" entao
+          escreva(" ", grande[b], "  ")
+        senao
+          se b = atual entao
+            escreva("[", b, "] ")
+          senao
+            se empatada[b] entao
+              escreva(" ", b, "~ ")
+            senao
+              escreva(" ", b, "  ")
+            fimse
+          fimse
+        fimse
+      fimpara
+      escreval("")
+    fimpara
+    escreval("")
+    escreval("ESTADO DE TODOS OS SUBTABULEIROS:")
+    para br de 0 ate 2 faca
+      // cabecalho de cada subtabuleiro
+      para bc de 0 ate 2 faca
+        b <- br*3 + bc + 1
+        se b = atual entao
+          escreva(">CASA", b, "< ")
+        senao
+          se grande[b] <> "-" entao
+            escreva("Casa", b, ":", grande[b], " ")
+          senao
+            se empatada[b] entao
+              escreva("Casa", b, "~  ")
+            senao
+              escreva("Casa ", b, "  ")
+            fimse
+          fimse
+        fimse
+      fimpara
+      escreval("")
+      // as 3 linhas de cada subtabuleiro
+      para sr de 0 ate 2 faca
+        para bc de 0 ate 2 faca
+          b <- br*3 + bc + 1
+          para c de 1 ate 3 faca
+            idx <- sr*3 + c
+            escreva(peq[b,idx], " ")
+          fimpara
+          se bc < 2 entao
+            escreva("| ")
+          fimse
+        fimpara
+        escreval("")
+      fimpara
+      se br < 2 entao
+        escreval("-----------------------")
+      fimse
+    fimpara
+    escreval("")
+    escreval("Posicoes dentro de cada casa:  1 2 3 / 4 5 6 / 7 8 9")
+    se ultimaPos > 0 entao
+      escreval("Ultima jogada: ", ultimaJog, " na casa ", ultimaCasa, ", posicao ", ultimaPos)
+    fimse
+    se evento <> "" entao
+      escreval(evento)
+      evento <- ""
+    fimse
+    escreval("")
+fimprocedimento
+
+// Joga o subtabuleiro "cb", comecando por "jog",
+// até vitoria, velha ou limite de jogadas
+procedimento jogaSub
+  inicio
+    n <- 0
+    acabou <- falso
+    atual <- cb
+    enquanto (nao acabou) e (jogadasTotal < limite) faca
+      exibe
+      escreval("Casa grande ", cb, " - Jogador ", jog, ", escolha a posicao (1 a 9): ")
+      leia(lido)
+      se (lido < 1) ou (lido > 9) entao
+        evento <- "JOGADA INVALIDA! Digite um numero de 1 a 9."
+      senao
+        se peq[cb,lido] <> "-" entao
+          evento <- "JOGADA INVALIDA! Posicao ja ocupada. Escolha outra."
+        senao
+          peq[cb,lido] <- jog
+          n <- n + 1
+          jogadasTotal <- jogadasTotal + 1
+          ultimaJog <- jog
+          ultimaCasa <- cb
+          ultimaPos <- lido
+          venceSub
+          se ganhou entao
+            grande[cb] <- jog
+            acabou <- verdadeiro
+            evento <- "Subjogo finalizado: a casa grande foi ganha por " + jog + "!"
+          senao
+            se n = 9 entao
+              empatada[cb] <- verdadeiro
+              acabou <- verdadeiro
+              evento <- "Subjogo deu velha! A casa grande ficou sem dono e pode ser escolhida de novo."
+            senao
+              se jog = "X" entao
+                jog <- "O"
+              senao
+                jog <- "X"
+              fimse
+            fimse
+          fimse
+        fimse
+      fimse
+    fimenquanto
+    atual <- 0
+fimprocedimento
+
+/// Programa principal
+
+inicio
+  iniLinhas
+
+  escreval("=========== SUPER JOGO DA VELHA ===========")
+  escreval("Cada casa do tabuleiro grande e um jogo da velha completo.")
+  escreval("")
+  escreva("Continuar jogando quando nao houver mais vitoria possivel por alinhamento? (S/N): ")
+  leia(opc)
+  seguir <- falso
+  se (opc = "S") ou (opc = "s") entao
+    seguir <- verdadeiro
+  fimse
+  escreva("Limite de jogadas totais (0 = padrao 999): ")
+  leia(limite)
+  se limite <= 0 entao
+    limite <- 999
+  fimse
+
+  jogarDeNovo <- verdadeiro
+  enquanto jogarDeNovo faca
+    inicializa
+
+    enquanto nao terminou faca
+      // quem escolhe a casa grande e quem comeca a jogar nela
+      valida <- falso
+      enquanto nao valida faca
+        exibe
+        escreval("Jogador ", chooser, ", escolha a CASA GRANDE (1 a 9): ")
+        leia(lido)
+        se (lido < 1) ou (lido > 9) entao
+          evento <- "JOGADA INVALIDA! Digite um numero de 1 a 9."
+        senao
+          se grande[lido] <> "-" entao
+            evento <- "JOGADA INVALIDA! Essa casa grande ja foi finalizada. Escolha outra."
+          senao
+            cb <- lido
+            valida <- verdadeiro
+          fimse
+        fimse
+      fimenquanto
+
+      // se a casa tinha dado velha, o subtabuleiro recomeca do zero
+      se empatada[cb] entao
+        para j de 1 ate 9 faca
+          peq[cb,j] <- "-"
+        fimpara
+        empatada[cb] <- falso
+        evento <- "Subtabuleiro reiniciado: o subjogo anterior tinha dado velha."
+      fimse
+
+      jog <- chooser
+      jogaSub
+
+      // Fim de jogo? Se alguém ganhou o subjogo, "jog" é o vencedor dele;
+      // se não, o tabuleiro grande não mudou e não há linha nova para conferir.
+      venceGrande
+      se ganhou entao
+        terminou <- verdadeiro
+        motivo <- "Jogador " + jog + " fez tres casas grandes em linha e VENCEU o jogo!"
+      senao
+        contaTudo
+        calcPossivel
+        se jogadasTotal >= limite entao
+          terminou <- verdadeiro
+          porContagem <- verdadeiro
+          motivo <- "Limite de jogadas atingido."
+        senao
+          se livres = 0 entao
+            terminou <- verdadeiro
+            porContagem <- verdadeiro
+            motivo <- "Todas as casas grandes foram finalizadas."
+          senao
+            se nao pode entao
+              se seguir entao
+                semAlinhar <- verdadeiro
+              senao
+                terminou <- verdadeiro
+                porContagem <- verdadeiro
+                motivo <- "Ninguem mais consegue fazer tres em linha no tabuleiro grande."
+              fimse
+            fimse
+          fimse
+        fimse
+      fimse
+
+      // alterna quem escolhe a proxima casa grande (independe de quem ganhou)
+      se chooser = "X" entao
+        chooser <- "O"
+      senao
+        chooser <- "X"
+      fimse
+    fimenquanto
+
+    // resultado final (exibe já atualiza o placar vx e vo)
+    atual <- 0
+    exibe
+    escreval("================== FIM DE JOGO ==================")
+    escreval(motivo)
+    se porContagem entao
+      escreval("Casas grandes ganhas -> X: ", vx, "   O: ", vo)
+      se vx > vo entao
+        escreval("Jogador X VENCEU por ter mais casas grandes!")
+      senao
+        se vo > vx entao
+          escreval("Jogador O VENCEU por ter mais casas grandes!")
+        senao
+          escreval("Empate! Os dois jogadores tem o mesmo numero de casas grandes.")
+        fimse
+      fimse
+    fimse
+
+    escreval("")
+    escreva("Jogar novamente com as mesmas configuracoes? (S/N): ")
+    leia(opc)
+    jogarDeNovo <- falso
+    se (opc = "S") ou (opc = "s") entao
+      jogarDeNovo <- verdadeiro
+    fimse
+  fimenquanto
+
+  escreval("Obrigado por jogar!")
+fimalgoritmo

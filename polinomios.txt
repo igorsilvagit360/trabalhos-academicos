@@ -1,0 +1,592 @@
+algoritmo "Polinomios ate grau 8"
+
+var
+  pol: vetor[0..99] de real
+  gr: vetor[1..10] de inteiro
+  nome: vetor[1..10] de caractere
+  res: vetor[0..16] de real
+  resto: vetor[0..16] de real
+  cx: vetor[0..16] de real
+  mn: vetor[0..16] de real
+  zr: vetor[1..16] de real
+  zi: vetor[1..16] de real
+  qtd, gres, gresto, gx: inteiro
+  opcao, pk, pa, pb, pop, esc, sn, vgr: inteiro
+  msg: caractere
+  vnum, vres, vtmp: real
+  ag, ip, cp, zp, rn, ri, rj, rk, rit, oi, oj, mt, rt, ep, gi, dg, cv, rp: inteiro
+  vmax, tol, ipc, ipa: real
+  primeiro, troca: logico
+  raio, maxd, lead, ang, tr, ti, pr, pim, dr, di, ar, ai, den, dlr, dli, aux, ra, rb: real
+
+  // vres recebe vnum arredondado em 4 casas (sem o "-0")
+procedimento Arredonda
+  inicio
+    se vnum >= 0 entao
+      vres <- Int(vnum * 10000 + 0.5) / 10000
+    senao
+      vres <- 0 - Int(0 - vnum * 10000 + 0.5) / 10000
+    fimse
+    se vres = 0 entao
+      vres <- 0
+    fimse
+fimprocedimento
+
+// escreve vnum sem casas decimais se for inteiro, senao com 4 casas
+procedimento ImprimeNum
+  inicio
+    se Abs(vnum - Int(vnum)) < 0.0000001 entao
+      escreva(vnum:1:0)
+    senao
+      escreva(vnum:1:4)
+    fimse
+fimprocedimento
+
+// Remove ruido numerico (relativo ao maior coeficiente) e grau falso de cx
+procedimento AjustaGrau
+  inicio
+    vmax <- 0
+    para ag de 0 ate 16 faca
+      se Abs(cx[ag]) > vmax entao
+        vmax <- Abs(cx[ag])
+      fimse
+    fimpara
+    tol <- 0.0000000001 * vmax
+    para ag de 0 ate 16 faca
+      se Abs(cx[ag]) <= tol entao
+        cx[ag] <- 0
+      fimse
+    fimpara
+    enquanto (gx > 0) e (cx[gx] = 0) faca
+      gx <- gx - 1
+    fimenquanto
+fimprocedimento
+
+// Imprime o polinomio de trabalho cx (grau gx)
+procedimento ImprimePoli
+  inicio
+    primeiro <- verdadeiro
+    para ip de gx ate 0 passo -1 faca
+      ipc <- cx[ip]
+      se ipc <> 0 entao
+        se primeiro entao
+          se ipc < 0 entao
+            escreva("-")
+          fimse
+        senao
+          se ipc < 0 entao
+            escreva(" - ")
+          senao
+            escreva(" + ")
+          fimse
+        fimse
+        ipa <- Abs(ipc)
+        se (ipa <> 1) ou (ip = 0) entao
+          vnum <- ipa
+          ImprimeNum
+        fimse
+        se ip >= 1 entao
+          escreva("x")
+        fimse
+        se ip >= 2 entao
+          escreva("^", ip)
+        fimse
+        primeiro <- falso
+      fimse
+    fimpara
+    se primeiro entao
+      escreva("0")
+    fimse
+    escreval("")
+fimprocedimento
+
+procedimento CopiaParaX
+  inicio
+    para cp de 0 ate 16 faca
+      cx[cp] <- 0
+    fimpara
+    para cp de 0 ate 8 faca
+      cx[cp] <- pol[pk * 9 + cp]
+    fimpara
+    gx <- gr[pk]
+fimprocedimento
+
+procedimento CopiaResParaX
+  inicio
+    para cp de 0 ate 16 faca
+      cx[cp] <- res[cp]
+    fimpara
+    gx <- gres
+fimprocedimento
+
+procedimento CopiaRestoParaX
+  inicio
+    para cp de 0 ate 16 faca
+      cx[cp] <- resto[cp]
+    fimpara
+    gx <- gresto
+fimprocedimento
+
+// zera os coeficientes do polinomio pk
+procedimento ZeraPoli
+  inicio
+    para zp de 0 ate 8 faca
+      pol[pk * 9 + zp] <- 0
+    fimpara
+fimprocedimento
+
+// Encontra todas as raizes do polinomio de trabalho cx (Durand-Kerner)
+procedimento Raizes
+  inicio
+    AjustaGrau
+    rn <- gx
+    se rn = 0 entao
+      escreval("   Polinomio constante, nao possui raizes.")
+    senao
+      // torna o polinomio monico
+      lead <- cx[rn]
+      para ri de 0 ate rn faca
+        mn[ri] <- cx[ri] / lead
+      fimpara
+      // raio inicial (limite de Cauchy)
+      raio <- 0
+      para ri de 0 ate rn - 1 faca
+        se Abs(mn[ri]) > raio entao
+          raio <- Abs(mn[ri])
+        fimse
+      fimpara
+      raio <- 1 + raio
+      // chutes iniciais espalhados em uma circunferencia
+      para rk de 1 ate rn faca
+        ang <- 2 * 3.14159265358979 * (rk - 1) / rn + 0.4
+        zr[rk] <- raio * Cos(ang)
+        zi[rk] <- raio * Sen(ang)
+      fimpara
+      // iteracoes
+      rit <- 0
+      repita
+        rit <- rit + 1
+        maxd <- 0
+        para rk de 1 ate rn faca
+          // valor do polinomio em z[rk] (Horner complexo)
+          pr <- 1
+          pim <- 0
+          para ri de rn - 1 ate 0 passo -1 faca
+            tr <- pr * zr[rk] - pim * zi[rk] + mn[ri]
+            ti <- pr * zi[rk] + pim * zr[rk]
+            pr <- tr
+            pim <- ti
+          fimpara
+          // produto das diferencas (z[rk] - z[rj])
+          dr <- 1
+          di <- 0
+          para rj de 1 ate rn faca
+            se rj <> rk entao
+              ar <- zr[rk] - zr[rj]
+              ai <- zi[rk] - zi[rj]
+              tr <- dr * ar - di * ai
+              di <- dr * ai + di * ar
+              dr <- tr
+            fimse
+          fimpara
+          den <- dr * dr + di * di
+          se den > 0.0000000000000001 entao
+            dlr <- (pr * dr + pim * di) / den
+            dli <- (pim * dr - pr * di) / den
+            zr[rk] <- zr[rk] - dlr
+            zi[rk] <- zi[rk] - dli
+            se Abs(dlr) + Abs(dli) > maxd entao
+              maxd <- Abs(dlr) + Abs(dli)
+            fimse
+          senao
+            zr[rk] <- zr[rk] + 0.01
+            maxd <- 1
+          fimse
+        fimpara
+      ate (maxd < 0.000000000001 * raio) ou (rit >= 2000)
+
+      // ordena pela parte real, e pela parte imaginaria se empatar
+      para ri de 1 ate rn - 1 faca
+        para rj de 1 ate rn - ri faca
+          troca <- falso
+          se zr[rj] > zr[rj + 1] + 0.000000001 entao
+            troca <- verdadeiro
+          senao
+            se Abs(zr[rj] - zr[rj + 1]) <= 0.000000001 entao
+              se zi[rj] > zi[rj + 1] entao
+                troca <- verdadeiro
+              fimse
+            fimse
+          fimse
+          se troca entao
+            aux <- zr[rj]
+            zr[rj] <- zr[rj + 1]
+            zr[rj + 1] <- aux
+            aux <- zi[rj]
+            zi[rj] <- zi[rj + 1]
+            zi[rj + 1] <- aux
+          fimse
+        fimpara
+      fimpara
+
+      // imprime
+      escreva("   Quantidade de raizes ")
+      escreval(rn)
+      para rk de 1 ate rn faca
+        vnum <- zr[rk]
+        Arredonda
+        ra <- vres
+        vnum <- zi[rk]
+        Arredonda
+        rb <- vres
+        // raiz praticamente real
+        se Abs(zi[rk]) < 0.000001 * (1 + Abs(zr[rk])) entao
+          rb <- 0
+        fimse
+        escreva("      x", rk, " = ")
+        se rb = 0 entao
+          escreval(ra:1:4)
+        senao
+          escreva(ra:1:4)
+          se rb > 0 entao
+            escreva(" + ")
+          senao
+            escreva(" - ")
+          fimse
+          escreva(Abs(rb):1:4)
+          escreval("i")
+        fimse
+      fimpara
+      se rit >= 2000 entao
+        escreval("   Aviso, raizes multiplas ou precisao limitada, valores aproximados.")
+      fimse
+    fimse
+fimprocedimento
+
+procedimento MostraTodos
+  inicio
+    para mt de 1 ate qtd faca
+      pk <- mt
+      CopiaParaX
+      escreva("  ", nome[mt], "(x) = ")
+      ImprimePoli
+    fimpara
+fimprocedimento
+
+// raizes do polinomio pk
+procedimento RaizesDe
+  inicio
+    CopiaParaX
+    escreva("  ", nome[pk], "(x) = ")
+    ImprimePoli
+    Raizes
+    escreval("")
+fimprocedimento
+
+procedimento RaizesTodos
+  inicio
+    para rt de 1 ate qtd faca
+      pk <- rt
+      RaizesDe
+    fimpara
+fimprocedimento
+
+// Digitacao de um polinomio pk
+procedimento DigitaPoli
+  inicio
+    escreval("Polinomio ", nome[pk], "(x)")
+    repita
+      escreva("  Grau (0 a 8) > ")
+      leia(vgr)
+      se (vgr < 0) ou (vgr > 8) entao
+        escreval("  Grau invalido, use um valor de 0 a 8.")
+      fimse
+    ate (vgr >= 0) e (vgr <= 8)
+    gr[pk] <- vgr
+    ZeraPoli
+    para dg de gr[pk] ate 0 passo -1 faca
+      repita
+        escreva("  Coeficiente de x^")
+        escreva(dg)
+        escreva(" > ")
+        leia(vtmp)
+        pol[pk * 9 + dg] <- vtmp
+        se (dg = gr[pk]) e (vtmp = 0) entao
+          escreval("  O coeficiente do maior grau nao pode ser zero.")
+        fimse
+      ate (dg < gr[pk]) ou (vtmp <> 0)
+    fimpara
+fimprocedimento
+
+// Carrega os 4 polinomios da prova (p, q, r, s) e zera os demais
+procedimento CarregaProva
+  inicio
+    para cv de 1 ate 10 faca
+      pk <- cv
+      ZeraPoli
+      gr[cv] <- 0
+    fimpara
+    // p(x) = x^2 + 3x - 10
+    gr[1] <- 2
+    pol[1 * 9 + 2] <- 1
+    pol[1 * 9 + 1] <- 3
+    pol[1 * 9 + 0] <- -10
+    // q(x) = x^3 - 3x^2 - 6x + 8
+    gr[2] <- 3
+    pol[2 * 9 + 3] <- 1
+    pol[2 * 9 + 2] <- -3
+    pol[2 * 9 + 1] <- -6
+    pol[2 * 9 + 0] <- 8
+    // r(x) = 2x^3 - 10x^2 + 6x + 18
+    gr[3] <- 3
+    pol[3 * 9 + 3] <- 2
+    pol[3 * 9 + 2] <- -10
+    pol[3 * 9 + 1] <- 6
+    pol[3 * 9 + 0] <- 18
+    // s(x) = x^4 - 10x^2 + 9
+    gr[4] <- 4
+    pol[4 * 9 + 4] <- 1
+    pol[4 * 9 + 2] <- -10
+    pol[4 * 9 + 0] <- 9
+    qtd <- 4
+fimprocedimento
+
+// Lista os polinomios e le a escolha em esc (texto da pergunta em msg)
+procedimento EscolhePoli
+  inicio
+    para ep de 1 ate qtd faca
+      escreva("  ", ep, " = ", nome[ep], "(x)   ")
+    fimpara
+    escreval("")
+    repita
+      escreva(msg)
+      escreva(" (1 a ")
+      escreva(qtd)
+      escreva(") > ")
+      leia(esc)
+    ate (esc >= 1) e (esc <= qtd)
+fimprocedimento
+
+// pop = 1 soma, 2 subtracao, 3 multiplicacao, 4 divisao
+procedimento Operar
+  inicio
+    para oi de 0 ate 16 faca
+      res[oi] <- 0
+      resto[oi] <- 0
+    fimpara
+    gres <- 0
+    gresto <- 0
+    escolha pop
+      caso 1
+        gres <- gr[pa]
+        se gr[pb] > gres entao
+          gres <- gr[pb]
+        fimse
+        para oi de 0 ate 8 faca
+          res[oi] <- pol[pa * 9 + oi] + pol[pb * 9 + oi]
+        fimpara
+      caso 2
+        gres <- gr[pa]
+        se gr[pb] > gres entao
+          gres <- gr[pb]
+        fimse
+        para oi de 0 ate 8 faca
+          res[oi] <- pol[pa * 9 + oi] - pol[pb * 9 + oi]
+        fimpara
+      caso 3
+        gres <- gr[pa] + gr[pb]
+        para oi de 0 ate gr[pa] faca
+          para oj de 0 ate gr[pb] faca
+            res[oi + oj] <- res[oi + oj] + pol[pa * 9 + oi] * pol[pb * 9 + oj]
+          fimpara
+        fimpara
+      caso 4
+        para oi de 0 ate 8 faca
+          resto[oi] <- pol[pa * 9 + oi]
+        fimpara
+        se gr[pa] < gr[pb] entao
+          gres <- 0
+          gresto <- gr[pa]
+        senao
+          gres <- gr[pa] - gr[pb]
+          para oi de gres ate 0 passo -1 faca
+            res[oi] <- resto[oi + gr[pb]] / pol[pb * 9 + gr[pb]]
+            para oj de 0 ate gr[pb] faca
+              resto[oi + oj] <- resto[oi + oj] - res[oi] * pol[pb * 9 + oj]
+            fimpara
+          fimpara
+          gresto <- gr[pb] - 1
+          se gresto < 0 entao
+            gresto <- 0
+          fimse
+          para oi de gresto + 1 ate 16 faca
+            resto[oi] <- 0
+          fimpara
+        fimse
+    fimescolha
+fimprocedimento
+
+procedimento ExecutaOperacao
+  inicio
+    Operar
+    escreva("  ", nome[pa], "(x) ")
+    escolha pop
+      caso 1
+        escreva("+")
+      caso 2
+        escreva("-")
+      caso 3
+        escreva("*")
+      caso 4
+        escreva("/")
+    fimescolha
+    escreval(" ", nome[pb], "(x)")
+    se pop = 4 entao
+      CopiaResParaX
+      AjustaGrau
+      escreva("  Quociente = ")
+      ImprimePoli
+      Raizes
+      CopiaRestoParaX
+      AjustaGrau
+      escreva("  Resto     = ")
+      ImprimePoli
+    senao
+      CopiaResParaX
+      AjustaGrau
+      escreva("  Resultado = ")
+      ImprimePoli
+      escreva("  Grau do resultado ")
+      escreval(gx)
+      Raizes
+    fimse
+    escreval("")
+fimprocedimento
+
+// Oferece guardar o resultado (ou quociente) como novo polinomio
+procedimento GuardaResultado
+  inicio
+    CopiaResParaX
+    AjustaGrau
+    se gx > 8 entao
+      escreval("Resultado com grau maior que 8, nao pode ser guardado.")
+    senao
+      se qtd >= 10 entao
+        escreval("Limite de 10 polinomios atingido.")
+      senao
+        escreva("Guardar o resultado como novo polinomio? (1 = sim, 0 = nao) > ")
+        leia(sn)
+        se sn = 1 entao
+          qtd <- qtd + 1
+          pk <- qtd
+          ZeraPoli
+          para gi de 0 ate 8 faca
+            pol[qtd * 9 + gi] <- cx[gi]
+          fimpara
+          gr[qtd] <- gx
+          escreval("Guardado como ", nome[qtd], "(x)")
+        fimse
+      fimse
+    fimse
+fimprocedimento
+
+// A prova usa os polinomios 1 a 4 (p, q, r, s) como estao guardados
+procedimento ResolverProva
+  inicio
+    escreval("==== a) Raizes de cada polinomio ====")
+    para rp de 1 ate 4 faca
+      pk <- rp
+      RaizesDe
+    fimpara
+    escreval("==== b) f = p * q ====")
+    pa <- 1
+    pb <- 2
+    pop <- 3
+    ExecutaOperacao
+    escreval("==== c) g = p * r ====")
+    pa <- 1
+    pb <- 3
+    pop <- 3
+    ExecutaOperacao
+    escreval("==== d) h = p * s ====")
+    pa <- 1
+    pb <- 4
+    pop <- 3
+    ExecutaOperacao
+fimprocedimento
+
+// ---------------------------------------------------------------
+inicio
+  nome[1] <- "p"
+  nome[2] <- "q"
+  nome[3] <- "r"
+  nome[4] <- "s"
+  nome[5] <- "t"
+  nome[6] <- "u"
+  nome[7] <- "v"
+  nome[8] <- "w"
+  nome[9] <- "y"
+  nome[10] <- "z"
+  CarregaProva
+  repita
+    escreval("")
+    escreval("========== POLINOMIOS (ate grau 8) ==========")
+    escreval("1 - Inserir um NOVO polinomio")
+    escreval("2 - Editar (substituir) um polinomio existente")
+    escreval("3 - Mostrar os polinomios")
+    escreval("4 - Raizes de um polinomio")
+    escreval("5 - Raizes de todos os polinomios")
+    escreval("6 - Operacao entre dois polinomios (+ - * /)")
+    escreval("7 - Resolver a prova (a, b, c, d)")
+    escreval("8 - Restaurar os polinomios da prova")
+    escreval("0 - Sair")
+    escreva("Opcao > ")
+    leia(opcao)
+    escolha opcao
+      caso 0
+        escreval("Encerrando.")
+      caso 1
+        se qtd >= 10 entao
+          escreval("Limite de 10 polinomios atingido. Use a opcao 2 para substituir.")
+        senao
+          qtd <- qtd + 1
+          pk <- qtd
+          DigitaPoli
+        fimse
+      caso 2
+        msg <- "Qual polinomio editar"
+        EscolhePoli
+        pk <- esc
+        DigitaPoli
+      caso 3
+        MostraTodos
+      caso 4
+        msg <- "Qual polinomio"
+        EscolhePoli
+        pk <- esc
+        RaizesDe
+      caso 5
+        RaizesTodos
+      caso 6
+        msg <- "Primeiro polinomio"
+        EscolhePoli
+        pa <- esc
+        repita
+          escreva("Operacao (1 = soma, 2 = subtracao, 3 = multiplicacao, 4 = divisao) > ")
+          leia(pop)
+        ate (pop >= 1) e (pop <= 4)
+        msg <- "Segundo polinomio"
+        EscolhePoli
+        pb <- esc
+        ExecutaOperacao
+        GuardaResultado
+      caso 7
+        ResolverProva
+      caso 8
+        CarregaProva
+        escreval("Polinomios da prova restaurados (p, q, r, s).")
+      outrocaso
+        escreval("Opcao invalida.")
+    fimescolha
+  ate opcao = 0
+fimalgoritmo
